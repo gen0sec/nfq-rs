@@ -660,6 +660,19 @@ impl Queue {
         Ok(())
     }
 
+    /// Size the receive buffer for a copy range that someone else already configured.
+    ///
+    /// A `Queue` built with `From<OwnedFd>` reads with a metadata-sized buffer. When the socket is
+    /// bound to a queue whose copy range another holder set, a larger packet is truncated and
+    /// [`recv`](#method.recv) fails. Call this to grow the buffer to fit.
+    ///
+    /// `range` MUST match the copy range set on the queue. This does no I/O: unlike
+    /// [`set_copy_range`](#method.set_copy_range) it sends no netlink message, so no kernel ACK
+    /// can land in a receive queue shared with the other holder.
+    pub fn set_recv_copy_range(&mut self, range: u16) {
+        self.bufsize = *METADATA_SIZE + range as usize;
+    }
+
     /// Set the maximum kernel queue length. If the application cannot [`recv`](#method.recv) fast
     /// enough, newly queued packet will be dropped (or accepted if fail open is enabled).
     pub fn set_queue_max_len(&mut self, queue_num: u16, len: u32) -> Result<()> {
@@ -847,4 +860,34 @@ fn _assert_send_and_sync() {
 
     check::<Message>();
     check::<Queue>();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixDatagram;
+
+    fn adopted_queue() -> Queue {
+        let (a, _b) = UnixDatagram::pair().unwrap();
+        Queue::from(OwnedFd::from(a))
+    }
+
+    #[test]
+    fn adopted_queue_buffer_is_too_small_for_max_copy_range() {
+        let q = adopted_queue();
+        assert!(q.bufsize < *METADATA_SIZE + u16::MAX as usize);
+    }
+
+    #[test]
+    fn set_recv_copy_range_sizes_the_buffer_and_sends_nothing() {
+        let (a, b) = UnixDatagram::pair().unwrap();
+        b.set_nonblocking(true).unwrap();
+        let mut q = Queue::from(OwnedFd::from(a));
+        q.set_recv_copy_range(u16::MAX);
+        assert_eq!(q.bufsize, *METADATA_SIZE + u16::MAX as usize);
+        // Nothing was written to the socket: the peer sees an empty queue.
+        let mut buf = [0u8; 16];
+        let err = b.recv(&mut buf).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::WouldBlock);
+    }
 }
