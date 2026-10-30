@@ -1,5 +1,10 @@
 # nfq - NetFilter queue for Rust
 
+> **Fork.** This is gen0sec's fork of [nbdd0121/nfq-rs](https://github.com/nbdd0121/nfq-rs) at
+> upstream `master`. It adds no code; it only publishes `master` (which has the `OwnedFd`
+> conversions) to the gen0sec registry as `0.2.6-gen0sec.N` until upstream releases it
+> ([nbdd0121/nfq-rs#21](https://github.com/nbdd0121/nfq-rs/issues/21)).
+
 `nfq` is Rust library for performing userspace handling of packets queued by the kernel packet
 packet filter chains.
 
