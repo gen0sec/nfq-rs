@@ -6,10 +6,15 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Rust library for dealing with NetFilter queue"
 keywords = ["netfilter", "nfqueue", "iptables"]
+categories = ["network-programming", "os::linux-apis"]
+readme = "README.md"
 homepage = "https://github.com/nbdd0121/nfq-rs"
 repository = "https://github.com/gen0sec/nfq-rs.git"
 publish = ["gen0sec"]
 rust-version = "1.85.0"
+# The gen0sec registry requires `links`, and Cargo requires a build script with it.
+links = "nfq"
+build = "build.rs"
 
 [dependencies]
 libc = "0.2"
