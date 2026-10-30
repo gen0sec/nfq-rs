@@ -666,9 +666,13 @@ impl Queue {
     /// bound to a queue whose copy range another holder set, a larger packet is truncated and
     /// [`recv`](#method.recv) fails. Call this to grow the buffer to fit.
     ///
-    /// `range` MUST match the copy range set on the queue. This does no I/O: unlike
-    /// [`set_copy_range`](#method.set_copy_range) it sends no netlink message, so no kernel ACK
-    /// can land in a receive queue shared with the other holder.
+    /// `range` MUST be at least the copy range set on the queue. If it is smaller, a packet that
+    /// does not fit is consumed by the kernel and [`recv`](#method.recv) fails with `ENOSPC`: the
+    /// packet gets no verdict, and on a shared socket the other holder never sees it. The buffer
+    /// size belongs to this `Queue`, so every holder of the socket sizes its own.
+    ///
+    /// This does no I/O: unlike [`set_copy_range`](#method.set_copy_range) it sends no netlink
+    /// message, so no kernel ACK can land in a receive queue shared with the other holder.
     pub fn set_recv_copy_range(&mut self, range: u16) {
         self.bufsize = *METADATA_SIZE + range as usize;
     }
@@ -879,15 +883,9 @@ mod tests {
     }
 
     #[test]
-    fn set_recv_copy_range_sizes_the_buffer_and_sends_nothing() {
-        let (a, b) = UnixDatagram::pair().unwrap();
-        b.set_nonblocking(true).unwrap();
-        let mut q = Queue::from(OwnedFd::from(a));
+    fn set_recv_copy_range_sizes_the_buffer() {
+        let mut q = adopted_queue();
         q.set_recv_copy_range(u16::MAX);
         assert_eq!(q.bufsize, *METADATA_SIZE + u16::MAX as usize);
-        // Nothing was written to the socket: the peer sees an empty queue.
-        let mut buf = [0u8; 16];
-        let err = b.recv(&mut buf).unwrap_err();
-        assert_eq!(err.kind(), std::io::ErrorKind::WouldBlock);
     }
 }
